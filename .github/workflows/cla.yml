@@ -1,0 +1,40 @@
+name: CLA Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+jobs:
+  CLAssistant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CLA Assistant
+        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        uses: cla-assistant/github-action@v2
+        with:
+          path-to-signatures: 'signatures/version1/cla.json'
+          path-to-document: 'CLA.md' # Path to your CLA document
+          branch: 'main'
+          allowlist: bot,dependabot[bot] # You can add bots to the allowlist
+
+          # The content of the comment posted on the PR when a contributor needs to sign the CLA
+          content-to-post: >
+            Thank you for your contribution!
+            We require all contributors to sign our Contributor License Agreement (CLA) before we can accept the pull request.
+            Please read the [CLA](${{ env.CLA_URL }}) carefully. If you agree to it, please comment with the following sentence in this pull request:
+            > I have read the CLA Document and I hereby sign the CLA
+
+          # The content of the comment posted on the PR when the CLA is signed
+          signed-comment: >
+            Thank you for signing the CLA! We can now proceed with your pull request.
+
+          # The content of the lock comment posted on the PR when the CLA is signed
+          lock-pull-request-after-sign: true
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The personal access token is required only for storing the signatures in a different repository/branch
+          # PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          CLA_URL: https://github.com/${{ github.repository }}/blob/main/CLA.md

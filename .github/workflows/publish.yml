@@ -1,0 +1,51 @@
+name: Publish Chapters
+
+on:
+  push:
+    branches:
+      - main # Or your default branch
+    paths:
+      - 'template/manuscripts/**.txt'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows the action to push to the repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history to get the last commit message
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install feedgen
+
+      - name: Run publishing script
+        id: publish_script
+        run: python .github/scripts/publish.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Check for changes in the tracked directories
+          if ! git diff --quiet content/ static/; then
+            git add content/*.md static/feed.xml
+            # Get the last commit message for context
+            LAST_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+            git commit -m "Automated publish: update chapters and feed" -m "Triggered by commit: $LAST_COMMIT_MESSAGE"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

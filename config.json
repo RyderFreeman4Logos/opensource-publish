@@ -1,0 +1,8 @@
+{
+    "authorName": "在此处填写您的作者名",
+    "workTitle": "在此处填写您的作品标题",
+    "solanaAddress": "在此处填写您的Solana钱包地址 (可选)",
+    "elementLink": "在此处填写您的Element社群链接 (可选)",
+    "feedLink": "在此处填写您作品发布后的feed订阅链接 (例如 https://yourgithubname.github.io/your-repo-name/feed.xml)",
+    "baseSiteUrl": "在此处填写您作品的网站链接 (例如 https://yourgithubname.github.io/your-repo-name/)"
+}
