@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your default branch
     paths:
-      - 'template/manuscripts/**.txt'
+      - 'manuscripts/**.txt'
 
 jobs:
   build-and-publish:
@@ -19,6 +19,27 @@ jobs:
         with:
           # Fetch all history to get the last commit message
           fetch-depth: 0
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Update config.json with repo URLs
+        id: update_config
+        run: |
+          if jq -e '.baseSiteUrl | contains("在此处填写")' config.json > /dev/null; then
+            echo "Updating baseSiteUrl and feedLink in config.json"
+            REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+            BASE_URL="https://${{ github.repository_owner }}.github.io/$REPO_NAME"
+            FEED_URL="$BASE_URL/feed.xml"
+            jq --arg base_url "$BASE_URL/" \
+               --arg feed_link "$FEED_URL" \
+               '.baseSiteUrl = $base_url | .feedLink = $feed_link' \
+               config.json > config.tmp && mv config.tmp config.json
+            echo "config_updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "config.json already has custom values. Skipping update."
+            echo "config_updated=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,15 +58,24 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # Check for changes in the tracked directories
-          if ! git diff --quiet content/ static/; then
-            git add content/*.md static/feed.xml
-            # Get the last commit message for context
-            LAST_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-            git commit -m "Automated publish: update chapters and feed" -m "Triggered by commit: $LAST_COMMIT_MESSAGE"
-            git push
-          else
+          # Stage all potential changes
+          git add config.json content/*.md static/feed.xml
+          
+          # See if there is anything to commit
+          if git diff --staged --quiet; then
             echo "No changes to commit."
+            exit 0
           fi
+          
+          LAST_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          COMMIT_MESSAGE="Automated publish: update chapters and feed"
+
+          # If config.json was part of the staged changes, use a more specific message
+          if git diff --staged --name-only | grep -q "config.json"; then
+            COMMIT_MESSAGE="ci: auto-generate URLs and publish content"
+          fi
+
+          git commit -m "$COMMIT_MESSAGE" -m "Triggered by commit: $LAST_COMMIT_MESSAGE"
+          git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
