@@ -53,8 +53,6 @@
     *   `email`: 您的电子邮件地址。
     *   `title`: 您的出版物的标题。
     *   `description`: 对您的出版物的简短描述。
-    *   `repo_url`: 您的仓库地址。**请务必将 `your-username` 和 `your-repo-name` 替换为您的 GitHub 用户名和仓库名**。
-    *   `cname`: 如果您想使用自定义域名，请填写您的域名；否则，请留空。
 
 6.  修改完成后，滚动到页面底部，点击 **Commit changes** 按钮保存您的修改。
 
@@ -65,19 +63,14 @@
 1.  进入您的仓库页面。
 2.  进入 `manuscripts` 文件夹。
 3.  点击 **Add file** > **Create new file**。
-4.  为您的文章命名，例如 `my-first-article.md`。**请务必使用 `.md` 作为文件扩展名**。
-5.  在文件内容区域，您可以开始使用 Markdown 格式撰写您的文章。如果您不熟悉 Markdown，可以参考这份 [Markdown 快速入门](https://www.markdownguide.org/basic-syntax/)。
-6.  撰写完成后，滚动到页面底部，点击 **Commit new file** 按钮保存您的文章。
+4.  为您的文章命名，例如 `00000001 第三章 真正的勇者.txt`。**请务必使用 `.txt` 作为文件扩展名**。
+6.  撰写完成后，点击 **Commit new file** 按钮保存您的文章。
 
 ## 第四步：发布您的文章
 
 您的文章将在您提交后自动发布。发布过程可能需要几分钟时间。
 
 发布成功后，您可以通过以下地址访问您的网站：
-
-`https://your-username.github.io/your-repo-name`
-
-请将 `your-username` 和 `your-repo-name` 替换为您的 GitHub 用户名和仓库名。
 
 您的文章列表和 RSS feed 也会自动更新。
 
