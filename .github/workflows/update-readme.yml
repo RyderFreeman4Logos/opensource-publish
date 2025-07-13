@@ -1,0 +1,46 @@
+name: Update README
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup jq
+        run: sudo apt-get install -y jq
+
+      - name: Update README
+        run: |
+          REPO_URL=$(jq -r .repo_url config.json)
+          if [ -z "$REPO_URL" ] || [ "$REPO_URL" == "null" ]; then
+            echo "repo_url not found in config.json. Skipping README update."
+            exit 0
+          fi
+          
+          # Extract the user and repo name from the URL
+          # The repo_url is in the format https://github.com/user/repo
+          USER_REPO=$(echo "$REPO_URL" | sed 's/https:\/\/github.com\///')
+          
+          # Construct the feed URL
+          # The feed URL is in the format https://user.github.io/repo/feed.xml
+          FEED_URL="https://$(echo $USER_REPO | cut -d'/' -f1).github.io/$(echo $USER_REPO | cut -d'/' -f2)/feed.xml"
+          
+          # Check if the feed link already exists
+          if grep -q "\[Subscribe to our RSS Feed\]" README.md; then
+            echo "RSS feed link already exists in README.md."
+          else
+            echo "Adding RSS feed link to README.md."
+            echo -e "\n\n---\n\n[Subscribe to our RSS Feed]($FEED_URL)" >> README.md
+          fi
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "docs: add rss feed link to README.md"
+          file_pattern: README.md
