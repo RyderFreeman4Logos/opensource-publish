@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   build-and-publish:
+    # Prevent this workflow from running on the template repository itself
+    if: github.repository != 'RyderFreeman4Logos/opensource-publish'
     runs-on: ubuntu-latest
     permissions:
       contents: write # Important: allows the action to push changes
