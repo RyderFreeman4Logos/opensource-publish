@@ -3,9 +3,12 @@ name: Publish Chapters
 on:
   push:
     branches:
-      - main # Or your default branch
+      - main
     paths:
       - 'manuscripts/**.txt'
+      - 'config.json'
+      - '.github/workflows/publish.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,71 +18,17 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Allows the action to push to the repository
+      contents: write # Important: allows the action to push changes
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history to get the last commit message
-          fetch-depth: 0
+          fetch-depth: 0 # Needed for git timestamp logic
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Update config.json with repo URLs
-        id: update_config
-        run: |
-          if jq -e '.baseSiteUrl | contains("在此处填写")' config.json > /dev/null; then
-            echo "Updating baseSiteUrl and feedLink in config.json"
-            REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-            BASE_URL="https://${{ github.repository_owner }}.github.io/$REPO_NAME"
-            FEED_URL="$BASE_URL/static/feed.xml"
-            jq --arg base_url "$BASE_URL/" \
-               --arg feed_link "$FEED_URL" \
-               '.baseSiteUrl = $base_url | .feedLink = $feed_link' \
-               config.json > config.tmp && mv config.tmp config.json
-            echo "config_updated=true" >> $GITHUB_OUTPUT
-          else
-            echo "config.json already has custom values. Skipping update."
-            echo "config_updated=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Run OpenSource Publish Engine
+        # Points to the local action (for self-hosting/testing this repo)
+        # Users should use: uses: RyderFreeman4Logos/opensource-publish@main
+        uses: ./ 
         with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install feedgen
-
-      - name: Run publishing script
-        id: publish_script
-        run: python .github/scripts/publish.py
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Stage all potential changes
-          git add config.json content/*.md static/feed.xml
-          
-          # See if there is anything to commit
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          
-          LAST_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          COMMIT_MESSAGE="Automated publish: update chapters and feed"
-
-          # If config.json was part of the staged changes, use a more specific message
-          if git diff --staged --name-only | grep -q "config.json"; then
-            COMMIT_MESSAGE="ci: auto-generate URLs and publish content"
-          fi
-
-          git commit -m "$COMMIT_MESSAGE" -m "Triggered by commit: $LAST_COMMIT_MESSAGE"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

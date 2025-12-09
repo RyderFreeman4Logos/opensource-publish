@@ -12,23 +12,45 @@
 
 ## 快速开始
 
-1.  **配置您的作品信息**：打开 `config.json` 文件，只需填写您的 `authorName`（作者名）和 `workTitle`（作品标题）。您可以添加 `description` 来简要介绍您的作品。其他可选字段（如钱包地址）可按需填写。
-    > **注意**：`feedLink` 和 `baseSiteUrl` 这两个字段将由系统在您发布新文章时自动生成，请勿手动修改。
+### 方式一：使用模版（推荐新手）
 
-2.  **开始写作**：进入 `manuscripts` 目录，参考里面的模板文件，创建您的第一个 `.txt` 章节文件。文件名格式推荐为 `序号 章节标题.txt`（如 `001 第一章.txt`）。
-    *   支持 `.txt` 自动转 Markdown。
-    *   自动识别段落，优化阅读体验。
+1.  点击页面右上角的 **[Use this template](https://github.com/opensource-publish/opensource-publish/generate)** 按钮创建您的仓库。
+2.  开启 **GitHub Pages** (Settings -> Pages -> Deploy from branch: main / root)。
+3.  开始在 `manuscripts` 文件夹里写 `.txt`。
 
-3.  **设置打赏 (可选)**：在 `manuscripts` 目录下创建一个名为 `donation.txt` 的文件。
-    *   在里面写上您的打赏信息（支持 Markdown）。
-    *   系统会自动在每一章末尾生成一个“打赏催更”按钮，点击后弹出您设置的内容。
+### 方式二：手动配置（推荐进阶用户）
 
-4.  **发布**：提交您的更改。稍等片刻，您的作品网站就会自动发布和更新。系统会自动生成：
-    *   **首页目录 (Index)**：按章节顺序排列。
-    *   **章节页面**：包含“上一章”、“下一章”导航。
-    *   **RSS 订阅源**：方便读者订阅。
+如果您希望您的发布引擎永远保持最新（自动获取新功能和修复），请在您的仓库中创建文件 `.github/workflows/publish.yml` 并填入以下内容：
 
-需要更详细的步骤？请查看我们的 **[中文使用指南](docs/user-guide-zh.md)**，内含开启作品网站的教程。
+```yaml
+name: Publish Book
+on:
+  push:
+    paths: ['manuscripts/**.txt', 'config.json']
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: RyderFreeman4Logos/opensource-publish@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+这样，当本仓库更新代码（如新增打赏功能）时，您的仓库会自动享受到升级，无需手动复制代码。
+
+---
+
+## 使用步骤
+
+1.  **配置**：修改 `config.json` 填写作者名和书名。
+2.  **写作**：在 `manuscripts/` 目录下创建 `001 第一章.txt` 并写入内容。
+3.  **打赏**：(可选) 创建 `manuscripts/donation.txt` 设置您的打赏信息。
+4.  **提交**：Push 代码，系统自动构建网站。
 
 ## 关于此模板
 

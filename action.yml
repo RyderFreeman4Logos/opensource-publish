@@ -1,0 +1,47 @@
+name: 'OpenSource Publish Engine'
+description: 'Automated publishing engine for writers. Converts text to website.'
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
+inputs:
+  github_token:
+    description: 'GitHub Token for authentication (used for pushing changes)'
+    required: true
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: pip install feedgen
+      shell: bash
+
+    - name: Run Publisher Script
+      # We run the script from the ACTION'S path, but it operates on the USER'S workspace files.
+      run: python ${{ github.action_path }}/.github/scripts/publish.py
+      shell: bash
+
+    - name: Commit and Push Changes
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        
+        # Stage core files
+        git add config.json content/*.md static/feed.xml
+        
+        # Check for changes
+        if git diff --staged --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "chore: auto-publish content [skip ci]"
+          git push
+        fi
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
