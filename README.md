@@ -16,7 +16,7 @@
 
 1.  点击页面右上角的 **[Use this template](https://github.com/opensource-publish/opensource-publish/generate)** 按钮创建您的仓库。
 2.  开启 **GitHub Pages** (Settings -> Pages -> Deploy from branch: main / root)。
-3.  开始在 `manuscripts` 文件夹里写 `.txt`。
+3.  **等待发布**：修改 `config.json` 并提交后，系统会自动构建您的网站。
 
 ### 方式二：手动配置（推荐进阶用户）
 
