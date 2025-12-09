@@ -117,23 +117,16 @@ def update_readme(config):
             new_content = new_content.replace('{{authorName}}', author)
             new_content = new_content.replace('{{workTitle}}', title)
             new_content = new_content.replace('{{description}}', desc)
-            new_content = new_content.replace('{{baseSiteUrl}}', base_url)
-            new_content = new_content.replace('{{feedLink}}', feed_link)
             
-            # Special handling for element link block
+            # Construct links line for initial swap
+            links_line = f"[📖 在线阅读]({base_url}) | [📡 订阅 RSS]({feed_link})"
             if element_link:
-                link_md = f"[💬 读者群]({element_link})"
-                new_content = new_content.replace('{{elementLink}}', element_link) # Just in case
-                # But we actually want to replace the whole block in the template?
-                # The template has: <!-- element-link-start -->[💬 读者群]({{elementLink}})<!-- element-link-end -->
-                # So we just replace the inner part.
-                new_content = re.sub(r'<!-- element-link-start -->.*?<!-- element-link-end -->', 
-                                     f'<!-- element-link-start -->{link_md}<!-- element-link-end -->', 
-                                     new_content)
-            else:
-                # Remove the link if no element link provided
-                new_content = re.sub(r' \| <!-- element-link-start -->.*?<!-- element-link-end -->', '', new_content)
-                new_content = re.sub(r'<!-- element-link-start -->.*?<!-- element-link-end -->', '', new_content)
+                links_line += f" | [💬 读者群]({element_link})"
+            
+            # Replace the whole links block in template
+            new_content = re.sub(r'(<!-- links-start -->)(.*?)(<!-- links-end -->)', 
+                                 fr'\1{links_line}\3', 
+                                 new_content, flags=re.DOTALL)
 
             with open(readme_path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
@@ -154,17 +147,13 @@ def update_readme(config):
         new_content = replace_field(new_content, 'title', title)
         new_content = replace_field(new_content, 'author', author)
         new_content = replace_field(new_content, 'description', desc)
-        new_content = replace_field(new_content, 'base-url', base_url)
-        new_content = replace_field(new_content, 'feed-url', feed_link)
         
+        # Construct the links line
+        links_line = f"[📖 在线阅读]({base_url}) | [📡 订阅 RSS]({feed_link})"
         if element_link:
-             link_md = f"[💬 读者群]({element_link})"
-             new_content = replace_field(new_content, 'element-link', link_md)
-        else:
-             # If empty, we might want to hide it, but replacing with empty string keeps markers
-             # Ideally we keep markers but make content empty? Or remove text?
-             # For now, just clear the text between markers
-             new_content = replace_field(new_content, 'element-link', '')
+            links_line += f" | [💬 读者群]({element_link})"
+        
+        new_content = replace_field(new_content, 'links', links_line)
 
         if new_content != current_content:
             with open(readme_path, 'w', encoding='utf-8') as f:
@@ -304,7 +293,7 @@ window.onclick = function(event) {{
         if len(paragraphs) <= 1 and len(content) > 100:
              paragraphs = [p.strip() for p in content.split('\n') if p.strip()]
 
-        md_content = "---"
+        md_content = "---\n"
         md_content += f"layout: default\n"
         md_content += f"title: \"{chapter['title']}\"\n"
         md_content += f"date: {chapter['updated_at'].isoformat()}\n"
@@ -315,16 +304,16 @@ window.onclick = function(event) {{
         if next_chapter:
             md_content += f"next_url: ./ {next_chapter['md_filename']}\n"
             md_content += f"next_title: \"{next_chapter['title']}\"\n"
-        md_content += "---"
+        md_content += "---\n"
 
-        md_content += f"\n\n# {chapter['title']}\n\n"
+        md_content += f"\n# {chapter['title']}\n\n"
         md_content += "\n\n".join(f"{p}" for p in paragraphs)
         
         if donation_html:
             md_content += f"\n\n{donation_html}\n\n"
         
-        md_content += "\n\n---"
-        md_content += "\n\n<div class=\"navigation\">\n"
+        md_content += "\n\n---\n"
+        md_content += "\n<div class=\"navigation\">\n"
         if prev_chapter:
             md_content += f"  <a href=\"./{prev_chapter['md_filename']}\">← {prev_chapter['title']}</a>\n"
         else:
@@ -344,12 +333,12 @@ window.onclick = function(event) {{
         print(f"Generated {chapter['md_filename']}")
 
     # --- Generate Index (Table of Contents) ---
-    index_content = "---"
+    index_content = "---\n"
     index_content += "layout: default\n"
     index_content += f"title: \"{work_title}\"\n"
-    index_content += "---"
+    index_content += "---\n"
 
-    index_content += f"\n\n# {work_title}\n\n"
+    index_content += f"\n# {work_title}\n\n"
     if description:
         index_content += f"*{description}*\n\n"
     
@@ -357,7 +346,7 @@ window.onclick = function(event) {{
     if element_link and '在此处填写' not in element_link:
         index_content += f"[💬 加入读者交流群 (Element)]({element_link})\n\n"
 
-    index_content += "---"
+    index_content += "---\n"
 
     index_content += "## 目录\n\n"
     

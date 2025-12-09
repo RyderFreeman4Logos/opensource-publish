@@ -6,7 +6,7 @@
 
 ---
 
-[📖 在线阅读](<!-- base-url-start -->{{baseSiteUrl}}<!-- base-url-end -->) | [📡 订阅 RSS](<!-- feed-url-start -->{{feedLink}}<!-- feed-url-end -->) | <!-- element-link-start -->[💬 读者群]({{elementLink}})<!-- element-link-end -->
+<!-- links-start -->[📖 在线阅读]({{baseSiteUrl}}) | [📡 订阅 RSS]({{feedLink}}) | [💬 读者群]({{elementLink}})<!-- links-end -->
 
 ---
 
