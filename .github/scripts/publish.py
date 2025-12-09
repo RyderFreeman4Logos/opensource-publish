@@ -1,6 +1,6 @@
 # Copyright (C) 2025 RyderFreeman4Logos
 #
-# This program is free software: you can redistribute and/or modify
+# This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -8,10 +8,10 @@
 import os
 import json
 import re
+import shutil
 import subprocess
 from datetime import datetime, timezone
-# Check if feedgen is installed, if not, we can't run. 
-# In the Action environment, we ensure it's installed via action.yml
+# Check if feedgen is installed
 try:
     from feedgen.feed import FeedGenerator
 except ImportError:
@@ -28,7 +28,6 @@ INDEX_FILE = 'content/index.md'
 def get_git_info():
     """
     Retrieve repository owner and name from git config or environment variables.
-    Useful for constructing the GitHub Pages URL.
     """
     # Try GITHUB_REPOSITORY env var first (available in Actions)
     repo_slug = os.environ.get('GITHUB_REPOSITORY')
@@ -41,9 +40,6 @@ def get_git_info():
     try:
         result = subprocess.run(['git', 'remote', 'get-url', 'origin'], capture_output=True, text=True)
         url = result.stdout.strip()
-        # Parse SSH or HTTPS url
-        # git@github.com:Owner/Repo.git
-        # https://github.com/Owner/Repo.git
         match = re.search(r'[:/]([\w-]+)/([\w-]+)(?:\.git)?$', url)
         if match:
             return match.group(1), match.group(2)
@@ -60,7 +56,6 @@ def update_config_urls(config):
     base_url = config.get('baseSiteUrl', '')
     
     # Check if we need to update
-    # We check for specific keywords or if the URL doesn't look like a valid URL
     needs_update = (
         not base_url 
         or '在此处填写' in base_url 
@@ -71,8 +66,10 @@ def update_config_urls(config):
     if needs_update:
         owner, repo = get_git_info()
         if owner and repo:
-            new_base_url = f"https://{owner}.github.io/{repo}"
-            new_feed_link = f"{new_base_url}/static/feed.xml"
+            # Base URL points to the content directory for easier reading
+            new_base_url = f"https://{owner}.github.io/{repo}/content"
+            # Feed link points to the static file in root
+            new_feed_link = f"https://{owner}.github.io/{repo}/static/feed.xml"
             
             if config.get('baseSiteUrl') != new_base_url or config.get('feedLink') != new_feed_link:
                 config['baseSiteUrl'] = new_base_url
@@ -84,53 +81,98 @@ def update_config_urls(config):
 
 def update_readme(config):
     """
-    Swaps the default instruction README with the Book Cover README 
-    if the project is configured and running.
+    Swaps or updates the README.md based on config state.
     """
     readme_path = 'README.md'
     template_path = 'docs/README_TEMPLATE.md'
     
-    # Safety checks
     if not os.path.exists(readme_path) or not os.path.exists(template_path):
         return
 
     with open(readme_path, 'r', encoding='utf-8') as f:
         current_content = f.read()
 
-    # Check if we are still using the "Instruction Manual" README
-    # We look for a unique string that is ONLY in the template instruction
-    if "欢迎您使用本模板开始您的创作之旅" in current_content or "Quick Start" in current_content:
-        print("Detected default README. Swapping with Book Cover template...")
-        
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template_content = f.read()
-            
-        # Replace placeholders
-        # config keys: authorName, workTitle, description, baseSiteUrl, feedLink, elementLink
-        new_content = template_content
-        new_content = new_content.replace('{{authorName}}', config.get('authorName', 'Author'))
-        new_content = new_content.replace('{{workTitle}}', config.get('workTitle', 'Title'))
-        new_content = new_content.replace('{{description}}', config.get('description', ''))
-        new_content = new_content.replace('{{baseSiteUrl}}', config.get('baseSiteUrl', '#'))
-        new_content = new_content.replace('{{feedLink}}', config.get('feedLink', '#'))
-        
-        element_link = config.get('elementLink', '')
-        if '在此处填写' in element_link: 
-            element_link = '#'
-        new_content = new_content.replace('{{elementLink}}', element_link)
+    # --- Config Values ---
+    author = config.get('authorName', 'Author')
+    title = config.get('workTitle', 'Title')
+    desc = config.get('description', '')
+    base_url = config.get('baseSiteUrl', '#')
+    feed_link = config.get('feedLink', '#')
+    element_link = config.get('elementLink', '')
+    if '在此处填写' in element_link: element_link = ''
 
-        # Write back
-        with open(readme_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        print("README.md updated.")
+    # --- Scenario 1: Initial Swap ---
+    # Trigger: Default README is present AND User has updated the config (Author Name is not placeholder)
+    is_default_readme = "欢迎您使用本模板开始您的创作之旅" in current_content or "Quick Start" in current_content
+    is_config_ready = "在此处填写" not in author
+    
+    if is_default_readme:
+        if is_config_ready:
+            print("Swapping default README with Book Cover template...")
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            
+            # Initial replacement of placeholders
+            new_content = template_content
+            new_content = new_content.replace('{{authorName}}', author)
+            new_content = new_content.replace('{{workTitle}}', title)
+            new_content = new_content.replace('{{description}}', desc)
+            new_content = new_content.replace('{{baseSiteUrl}}', base_url)
+            new_content = new_content.replace('{{feedLink}}', feed_link)
+            
+            # Special handling for element link block
+            if element_link:
+                link_md = f"[💬 读者群]({element_link})"
+                new_content = new_content.replace('{{elementLink}}', element_link) # Just in case
+                # But we actually want to replace the whole block in the template?
+                # The template has: <!-- element-link-start -->[💬 读者群]({{elementLink}})<!-- element-link-end -->
+                # So we just replace the inner part.
+                new_content = re.sub(r'<!-- element-link-start -->.*?<!-- element-link-end -->', 
+                                     f'<!-- element-link-start -->{link_md}<!-- element-link-end -->', 
+                                     new_content)
+            else:
+                # Remove the link if no element link provided
+                new_content = re.sub(r' \| <!-- element-link-start -->.*?<!-- element-link-end -->', '', new_content)
+                new_content = re.sub(r'<!-- element-link-start -->.*?<!-- element-link-end -->', '', new_content)
+
+            with open(readme_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+        else:
+            print("Config not ready (author name is placeholder). Skipping README swap.")
+    
+    # --- Scenario 2: Ongoing Update ---
+    # Trigger: Markers exist in current README. We update content between markers.
+    else:
+        print("Updating existing README fields...")
+        new_content = current_content
+        
+        # Helper to replace between markers
+        def replace_field(text, key, value):
+            pattern = fr'(<!-- {key}-start -->)(.*?)(<!-- {key}-end -->)'
+            return re.sub(pattern, fr'\1{value}\3', text, flags=re.DOTALL)
+
+        new_content = replace_field(new_content, 'title', title)
+        new_content = replace_field(new_content, 'author', author)
+        new_content = replace_field(new_content, 'description', desc)
+        new_content = replace_field(new_content, 'base-url', base_url)
+        new_content = replace_field(new_content, 'feed-url', feed_link)
+        
+        if element_link:
+             link_md = f"[💬 读者群]({element_link})"
+             new_content = replace_field(new_content, 'element-link', link_md)
+        else:
+             # If empty, we might want to hide it, but replacing with empty string keeps markers
+             # Ideally we keep markers but make content empty? Or remove text?
+             # For now, just clear the text between markers
+             new_content = replace_field(new_content, 'element-link', '')
+
+        if new_content != current_content:
+            with open(readme_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            print("README.md updated with new config values.")
 
 def get_git_updated_time(filepath):
-    """
-    Get the last commit timestamp for a file.
-    Falls back to filesystem modification time if git fails.
-    """
     try:
-        # Run git log to get the unix timestamp of the last commit
         result = subprocess.run(
             ['git', 'log', '-1', '--format=%at', '--', filepath],
             capture_output=True, text=True, check=False
@@ -138,15 +180,24 @@ def get_git_updated_time(filepath):
         timestamp = result.stdout.strip()
         if timestamp:
             return datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
-    except Exception as e:
-        print(f"Warning: git log failed for {filepath}: {e}")
-    
+    except Exception:
+        pass
     return datetime.fromtimestamp(os.path.getmtime(filepath), tz=timezone.utc)
 
 def main():
     """
-    Main function to process manuscripts and generate the feed.
+    Main function.
     """
+    # --- Fix 1: Clean Content Directory ---
+    if os.path.exists(CONTENT_DIR):
+        try:
+            # We preserve index.md? No, script generates it.
+            # We preserve .gitkeep? Not strictly necessary.
+            shutil.rmtree(CONTENT_DIR)
+            print(f"Cleaned {CONTENT_DIR} directory.")
+        except Exception as e:
+            print(f"Warning: Could not clean content dir: {e}")
+            
     os.makedirs(CONTENT_DIR, exist_ok=True)
     os.makedirs(os.path.dirname(FEED_FILE), exist_ok=True)
 
@@ -181,16 +232,12 @@ def main():
     if os.path.exists(donation_path):
         with open(donation_path, 'r', encoding='utf-8') as f:
             raw_donation = f.read()
-            # Simple Markdown to HTML conversion for donation info
-            # Convert headers
+            # Simple Markdown to HTML conversion
             donation_content = re.sub(r'^### (.*)', r'<h3>\1</h3>', raw_donation, flags=re.MULTILINE)
             donation_content = re.sub(r'^## (.*)', r'<h2>\1</h2>', donation_content, flags=re.MULTILINE)
             donation_content = re.sub(r'^# (.*)', r'<h1>\1</h1>', donation_content, flags=re.MULTILINE)
-            # Convert links [text](url)
-            donation_content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank"></a>', donation_content)
-            # Convert code blocks `text`
+            donation_content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank">\1</a>', donation_content)
             donation_content = re.sub(r'`(.*?)`', r'<code>\1</code>', donation_content)
-            # Convert newlines to <br> (simple)
             donation_content = donation_content.replace('\n', '<br>')
             
             donation_html = f"""
@@ -211,7 +258,6 @@ def main():
     </div>
 </div>
 <script>
-// Close the modal when clicking outside of it
 window.onclick = function(event) {{
     var modal = document.getElementById('donation-modal');
     if (event.target == modal) {{
@@ -223,15 +269,10 @@ window.onclick = function(event) {{
 
     # --- Collect Chapters ---
     chapters = []
-    
-    # Filter and sort files
     files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) if f.endswith('.txt') and f != 'donation.txt'])
 
     for filename in files:
         txt_path = os.path.join(MANUSCRIPTS_DIR, filename)
-        
-        # Regex to extract ID and Title
-        # Supports: "001 Title.txt", "001_Title.txt", "001. Title.txt"
         match = re.match(r'^(\d+)[_\.\s]+(.*)\.txt$', filename)
         if not match:
             print(f"Skipping invalid filename format: {filename}")
@@ -239,10 +280,7 @@ window.onclick = function(event) {{
         
         chapter_id = match.group(1)
         chapter_title = match.group(2).strip()
-        
-        # Create a URL-friendly slug
         slug = re.sub(r'[^\w\u4e00-\u9fa5-]', '', chapter_title.replace(' ', '-'))
-        # Ensure distinct filename even if titles are same (using ID)
         md_filename = f"{chapter_id}-{slug}.md"
         
         chapters.append({
@@ -255,24 +293,18 @@ window.onclick = function(event) {{
 
     # --- Process Chapters & Generate Content ---
     for i, chapter in enumerate(chapters):
-        # Determine Next/Prev
         prev_chapter = chapters[i-1] if i > 0 else None
         next_chapter = chapters[i+1] if i < len(chapters) - 1 else None
 
         with open(chapter['txt_path'], 'r', encoding='utf-8') as f:
             raw_content = f.read()
 
-        # Better text processing
-        # 1. Normalize line endings
         content = raw_content.replace('\r\n', '\n')
-        # 2. Split by double newlines (paragraphs)
         paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
-        # 3. If no double newlines found, try splitting by single newlines (common in some editors)
         if len(paragraphs) <= 1 and len(content) > 100:
              paragraphs = [p.strip() for p in content.split('\n') if p.strip()]
 
-        # Generate Markdown with Front Matter
-        md_content = "---\n"
+        md_content = "---"
         md_content += f"layout: default\n"
         md_content += f"title: \"{chapter['title']}\"\n"
         md_content += f"date: {chapter['updated_at'].isoformat()}\n"
@@ -283,18 +315,16 @@ window.onclick = function(event) {{
         if next_chapter:
             md_content += f"next_url: ./ {next_chapter['md_filename']}\n"
             md_content += f"next_title: \"{next_chapter['title']}\"\n"
-        md_content += "---\n\n"
+        md_content += "---"
 
-        md_content += f"# {chapter['title']}\n\n"
+        md_content += f"\n\n# {chapter['title']}\n\n"
         md_content += "\n\n".join(f"{p}" for p in paragraphs)
         
-        # Add Donation Section BEFORE the navigation
         if donation_html:
             md_content += f"\n\n{donation_html}\n\n"
         
-        # Add navigation footer
-        md_content += "\n\n---\n\n"
-        md_content += "<div class=\"navigation\">\n"
+        md_content += "\n\n---"
+        md_content += "\n\n<div class=\"navigation\">\n"
         if prev_chapter:
             md_content += f"  <a href=\"./{prev_chapter['md_filename']}\">← {prev_chapter['title']}</a>\n"
         else:
@@ -308,28 +338,27 @@ window.onclick = function(event) {{
             md_content += "  <span></span>\n"
         md_content += "</div>\n"
 
-        # Write MD file
         md_path = os.path.join(CONTENT_DIR, chapter['md_filename'])
         with open(md_path, 'w', encoding='utf-8') as f:
             f.write(md_content)
-        
         print(f"Generated {chapter['md_filename']}")
 
     # --- Generate Index (Table of Contents) ---
-    index_content = "---\n"
+    index_content = "---"
     index_content += "layout: default\n"
     index_content += f"title: \"{work_title}\"\n"
-    index_content += "---\n\n"
-    index_content += f"# {work_title}\n\n"
+    index_content += "---"
+
+    index_content += f"\n\n# {work_title}\n\n"
     if description:
         index_content += f"*{description}*\n\n"
     
-    # Add Element Community Link if exists
     element_link = config.get('elementLink', '')
     if element_link and '在此处填写' not in element_link:
         index_content += f"[💬 加入读者交流群 (Element)]({element_link})\n\n"
 
-    index_content += "---\n\n"
+    index_content += "---"
+
     index_content += "## 目录\n\n"
     
     for chapter in chapters:
@@ -351,19 +380,12 @@ window.onclick = function(event) {{
     fg.subtitle(f'Latest chapters of {work_title}')
     fg.language('zh-CN')
 
-    # Add entries (reverse chronological for feed is usually better, but for books ID order is also fine. 
-    # Let's stick to ID order but maybe standard readers expect newest first? 
-    # Actually for a book, you want the "newest published chapter" at the top usually.)
     for chapter in reversed(chapters):
         fe = fg.add_entry()
-        entry_url = f"{base_site_url}/content/{chapter['md_filename']}" if base_site_url else f"urn:chapter:{chapter['id']}"
+        entry_url = f"{base_site_url}/{chapter['md_filename']}" if base_site_url else f"urn:chapter:{chapter['id']}"
         fe.id(entry_url)
         fe.title(chapter['title'])
         fe.link(href=entry_url)
-        
-        # Read back the content we just wrote to get the HTML-ish markdown
-        # Note: In a real robust setup we'd convert MD to HTML here for the feed content.
-        # For now, we will provide a summary link.
         fe.summary(f"New chapter available: {chapter['title']}. Click to read.")
         fe.updated(chapter['updated_at'])
 
