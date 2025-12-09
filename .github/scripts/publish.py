@@ -98,8 +98,8 @@ def update_readme(config):
     desc = config.get('description', '')
     base_url = config.get('baseSiteUrl', '#')
     feed_link = config.get('feedLink', '#')
-    element_link = config.get('elementLink', '')
-    if '在此处填写' in element_link: element_link = ''
+    community_link = config.get('communityLink', '')
+    if '在此处填写' in community_link: community_link = ''
 
     # --- Scenario 1: Initial Swap ---
     # Trigger: Default README is present AND User has updated the config (Author Name is not placeholder)
@@ -120,8 +120,8 @@ def update_readme(config):
             
             # Construct links line for initial swap
             links_line = f"[📖 在线阅读]({base_url}) | [📡 订阅 RSS]({feed_link})"
-            if element_link:
-                links_line += f" | [💬 读者群]({element_link})"
+            if community_link:
+                links_line += f" | [💬 读者群]({community_link})"
             
             # Replace the whole links block in template
             new_content = re.sub(r'(<!-- links-start -->)(.*?)(<!-- links-end -->)', 
@@ -150,8 +150,8 @@ def update_readme(config):
         
         # Construct the links line
         links_line = f"[📖 在线阅读]({base_url}) | [📡 订阅 RSS]({feed_link})"
-        if element_link:
-            links_line += f" | [💬 读者群]({element_link})"
+        if community_link:
+            links_line += f" | [💬 读者群]({community_link})"
         
         new_content = replace_field(new_content, 'links', links_line)
 
@@ -342,9 +342,9 @@ window.onclick = function(event) {{
     if description:
         index_content += f"*{description}*\n\n"
     
-    element_link = config.get('elementLink', '')
-    if element_link and '在此处填写' not in element_link:
-        index_content += f"[💬 加入读者交流群 (Element)]({element_link})\n\n"
+    community_link = config.get('communityLink', '')
+    if community_link and '在此处填写' not in community_link:
+        index_content += f"[💬 加入读者交流群]({community_link})\n\n"
 
     index_content += "---\n"
 
