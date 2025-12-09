@@ -124,7 +124,11 @@ def update_readme(config):
                 links_line += f" | [💬 读者群]({community_link})"
             
             # Replace the whole links block in template
-            new_content = re.sub(r'(<!-- links-start -->)(.*?)(<!-- links-end -->)', 
+            # Template has:
+            # <!-- links-start -->
+            # ...
+            # <!-- links-end -->
+            new_content = re.sub(r'(<!-- links-start -->\n)(.*?)(\n<!-- links-end -->)', 
                                  fr'\1{links_line}\3', 
                                  new_content, flags=re.DOTALL)
 
@@ -153,7 +157,10 @@ def update_readme(config):
         if community_link:
             links_line += f" | [💬 读者群]({community_link})"
         
-        new_content = replace_field(new_content, 'links', links_line)
+        # Replace links block (multi-line)
+        new_content = re.sub(r'(<!-- links-start -->\n)(.*?)(\n<!-- links-end -->)', 
+                             fr'\1{links_line}\3', 
+                             new_content, flags=re.DOTALL)
 
         if new_content != current_content:
             with open(readme_path, 'w', encoding='utf-8') as f:
