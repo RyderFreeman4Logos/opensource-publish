@@ -265,7 +265,11 @@ window.onclick = function(event) {{
 
     # --- Collect Chapters ---
     chapters = []
-    files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) if f.endswith('.txt') and f != 'donation.txt'])
+    # Ignored files list
+    ignored_files = ['donation.txt', '00000001_如何使用本模板.txt']
+    
+    files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) 
+                   if f.endswith('.txt') and f not in ignored_files])
 
     for filename in files:
         txt_path = os.path.join(MANUSCRIPTS_DIR, filename)
@@ -278,12 +282,14 @@ window.onclick = function(event) {{
         chapter_title = match.group(2).strip()
         slug = re.sub(r'[^\w\u4e00-\u9fa5-]', '', chapter_title.replace(' ', '-'))
         md_filename = f"{chapter_id}-{slug}.md"
+        html_filename = f"{chapter_id}-{slug}.html"
         
         chapters.append({
             'id': chapter_id,
             'title': chapter_title,
             'txt_path': txt_path,
             'md_filename': md_filename,
+            'html_filename': html_filename,
             'updated_at': get_git_updated_time(txt_path)
         })
 
@@ -306,10 +312,10 @@ window.onclick = function(event) {{
         md_content += f"date: {chapter['updated_at'].isoformat()}\n"
         md_content += f"author: \"{author_name}\"\n"
         if prev_chapter:
-            md_content += f"prev_url: ./ {prev_chapter['md_filename']}\n"
+            md_content += f"prev_url: ./ {prev_chapter['html_filename']}\n"
             md_content += f"prev_title: \"{prev_chapter['title']}\"\n"
         if next_chapter:
-            md_content += f"next_url: ./ {next_chapter['md_filename']}\n"
+            md_content += f"next_url: ./ {next_chapter['html_filename']}\n"
             md_content += f"next_title: \"{next_chapter['title']}\"\n"
         md_content += "---\n"
 
@@ -322,14 +328,14 @@ window.onclick = function(event) {{
         md_content += "\n\n---\n"
         md_content += "\n<div class=\"navigation\">\n"
         if prev_chapter:
-            md_content += f"  <a href=\"./{prev_chapter['md_filename']}\">← {prev_chapter['title']}</a>\n"
+            md_content += f"  <a href=\"./{prev_chapter['html_filename']}\">← {prev_chapter['title']}</a>\n"
         else:
             md_content += "  <span></span>\n"
             
-        md_content += f"  <a href=\"./index.md\">目录</a>\n"
+        md_content += f"  <a href=\"./index.html\">目录</a>\n"
         
         if next_chapter:
-            md_content += f"  <a href=\"./{next_chapter['md_filename']}\">{next_chapter['title']} →</a>\n"
+            md_content += f"  <a href=\"./{next_chapter['html_filename']}\">{next_chapter['title']} →</a>\n"
         else:
             md_content += "  <span></span>\n"
         md_content += "</div>\n"
@@ -358,7 +364,7 @@ window.onclick = function(event) {{
     index_content += "## 目录\n\n"
     
     for chapter in chapters:
-        index_content += f"- [{chapter['title']}](./{chapter['md_filename']})\n"
+        index_content += f"- [{chapter['title']}](./{chapter['html_filename']})\n"
         
     with open(INDEX_FILE, 'w', encoding='utf-8') as f:
         f.write(index_content)
