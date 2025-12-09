@@ -82,6 +82,48 @@ def update_config_urls(config):
     
     return modified
 
+def update_readme(config):
+    """
+    Swaps the default instruction README with the Book Cover README 
+    if the project is configured and running.
+    """
+    readme_path = 'README.md'
+    template_path = 'docs/README_TEMPLATE.md'
+    
+    # Safety checks
+    if not os.path.exists(readme_path) or not os.path.exists(template_path):
+        return
+
+    with open(readme_path, 'r', encoding='utf-8') as f:
+        current_content = f.read()
+
+    # Check if we are still using the "Instruction Manual" README
+    # We look for a unique string that is ONLY in the template instruction
+    if "欢迎您使用本模板开始您的创作之旅" in current_content or "Quick Start" in current_content:
+        print("Detected default README. Swapping with Book Cover template...")
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+            
+        # Replace placeholders
+        # config keys: authorName, workTitle, description, baseSiteUrl, feedLink, elementLink
+        new_content = template_content
+        new_content = new_content.replace('{{authorName}}', config.get('authorName', 'Author'))
+        new_content = new_content.replace('{{workTitle}}', config.get('workTitle', 'Title'))
+        new_content = new_content.replace('{{description}}', config.get('description', ''))
+        new_content = new_content.replace('{{baseSiteUrl}}', config.get('baseSiteUrl', '#'))
+        new_content = new_content.replace('{{feedLink}}', config.get('feedLink', '#'))
+        
+        element_link = config.get('elementLink', '')
+        if '在此处填写' in element_link: 
+            element_link = '#'
+        new_content = new_content.replace('{{elementLink}}', element_link)
+
+        # Write back
+        with open(readme_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print("README.md updated.")
+
 def get_git_updated_time(filepath):
     """
     Get the last commit timestamp for a file.
@@ -123,6 +165,9 @@ def main():
             print("Updated config.json with auto-generated URLs.")
         except Exception as e:
             print(f"Warning: Could not save updated config.json: {e}")
+
+    # --- Auto-Update README ---
+    update_readme(config)
 
     author_name = config.get('authorName', 'Unknown Author')
     work_title = config.get('workTitle', 'Untitled Work')

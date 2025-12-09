@@ -27,8 +27,7 @@ jobs:
           fetch-depth: 0 # Needed for git timestamp logic
 
       - name: Run OpenSource Publish Engine
-        # Points to the local action (for self-hosting/testing this repo)
-        # Users should use: uses: RyderFreeman4Logos/opensource-publish@main
-        uses: ./ 
+        # Points to the remote action so users get automatic updates
+        uses: RyderFreeman4Logos/opensource-publish@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

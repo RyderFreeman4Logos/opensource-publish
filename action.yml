@@ -33,7 +33,7 @@ runs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         
         # Stage core files
-        git add config.json content/*.md static/feed.xml
+        git add config.json content/*.md static/feed.xml README.md
         
         # Check for changes
         if git diff --staged --quiet; then
