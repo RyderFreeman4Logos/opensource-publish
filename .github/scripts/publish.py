@@ -328,14 +328,14 @@ window.onclick = function(event) {{
         md_content += "\n\n---\n"
         md_content += "\n<div class=\"navigation\">\n"
         if prev_chapter:
-            md_content += f"  <a href=\"./{prev_chapter['html_filename']}\">← {prev_chapter['title']}</a>\n"
+            md_content += f"  <div><a href=\"./{prev_chapter['html_filename']}\">上一章 ⬅️  {prev_chapter['title']}</a></div>\n"
         else:
             md_content += "  <span></span>\n"
             
-        md_content += f"  <a href=\"./index.html\">目录</a>\n"
+        md_content += f"  <div><a href=\"./index.html\">目录</a></div>\n"
         
         if next_chapter:
-            md_content += f"  <a href=\"./{next_chapter['html_filename']}\">{next_chapter['title']} →</a>\n"
+            md_content += f"  <div><a href=\"./{next_chapter['html_filename']}\">下一章 ➡️ {next_chapter['title']}</a></div>\n"
         else:
             md_content += "  <span></span>\n"
         md_content += "</div>\n"
