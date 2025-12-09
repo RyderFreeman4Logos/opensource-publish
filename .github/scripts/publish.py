@@ -1,6 +1,6 @@
 # Copyright (C) 2025 RyderFreeman4Logos
 #
-# This program is free software: you can redistribute it and/or modify
+# This program is free software: you can redistribute and/or modify
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -58,11 +58,57 @@ def main():
     base_site_url = config.get('baseSiteUrl', '').strip('/')
     feed_link = config.get('feedLink', '')
 
+    # --- Load Donation Info ---
+    donation_html = ""
+    donation_path = os.path.join(MANUSCRIPTS_DIR, 'donation.txt')
+    if os.path.exists(donation_path):
+        with open(donation_path, 'r', encoding='utf-8') as f:
+            raw_donation = f.read()
+            # Simple Markdown to HTML conversion for donation info
+            # Convert headers
+            donation_content = re.sub(r'^### (.*)', r'<h3>\1</h3>', raw_donation, flags=re.MULTILINE)
+            donation_content = re.sub(r'^## (.*)', r'<h2>\1</h2>', donation_content, flags=re.MULTILINE)
+            donation_content = re.sub(r'^# (.*)', r'<h1>\1</h1>', donation_content, flags=re.MULTILINE)
+            # Convert links [text](url)
+            donation_content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank"></a>', donation_content)
+            # Convert code blocks `text`
+            donation_content = re.sub(r'`(.*?)`', r'<code>\1</code>', donation_content)
+            # Convert newlines to <br> (simple)
+            donation_content = donation_content.replace('\n', '<br>')
+            
+            donation_html = f"""
+<div id="donation-section" style="text-align: center; margin: 40px 0;">
+    <button onclick="document.getElementById('donation-modal').style.display='block'" 
+            style="background-color: #d73a49; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold;">
+        🎁 打赏催更 / Support Author
+    </button>
+</div>
+
+<div id="donation-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative;">
+        <span onclick="document.getElementById('donation-modal').style.display='none'" 
+              style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+        <div style="margin-top: 20px; line-height: 1.6;">
+            {donation_content}
+        </div>
+    </div>
+</div>
+<script>
+// Close the modal when clicking outside of it
+window.onclick = function(event) {{
+    var modal = document.getElementById('donation-modal');
+    if (event.target == modal) {{
+        modal.style.display = "none";
+    }}
+}}
+</script>
+"""
+
     # --- Collect Chapters ---
     chapters = []
     
     # Filter and sort files
-    files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) if f.endswith('.txt')])
+    files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) if f.endswith('.txt') and f != 'donation.txt'])
 
     for filename in files:
         txt_path = os.path.join(MANUSCRIPTS_DIR, filename)
@@ -109,8 +155,7 @@ def main():
              paragraphs = [p.strip() for p in content.split('\n') if p.strip()]
 
         # Generate Markdown with Front Matter
-        md_content = "---\
-"
+        md_content = "---\n"
         md_content += f"layout: default\n"
         md_content += f"title: \"{chapter['title']}\"\n"
         md_content += f"date: {chapter['updated_at'].isoformat()}\n"
@@ -121,15 +166,17 @@ def main():
         if next_chapter:
             md_content += f"next_url: ./ {next_chapter['md_filename']}\n"
             md_content += f"next_title: \"{next_chapter['title']}\"\n"
-        md_content += "---\
-\n"
+        md_content += "---\n\n"
 
         md_content += f"# {chapter['title']}\n\n"
         md_content += "\n\n".join(f"{p}" for p in paragraphs)
         
+        # Add Donation Section BEFORE the navigation
+        if donation_html:
+            md_content += f"\n\n{donation_html}\n\n"
+        
         # Add navigation footer
-        md_content += "\n\n---\
-\n"
+        md_content += "\n\n---\n\n"
         md_content += "<div class=\"navigation\">\n"
         if prev_chapter:
             md_content += f"  <a href=\"./{prev_chapter['md_filename']}\">← {prev_chapter['title']}</a>\n"
@@ -152,17 +199,14 @@ def main():
         print(f"Generated {chapter['md_filename']}")
 
     # --- Generate Index (Table of Contents) ---
-    index_content = "---\
-"
+    index_content = "---\n"
     index_content += "layout: default\n"
     index_content += f"title: \"{work_title}\"\n"
-    index_content += "---\
-\n"
+    index_content += "---\n\n"
     index_content += f"# {work_title}\n\n"
     if description:
         index_content += f"*{description}*\n\n"
-    index_content += "---\
-\n"
+    index_content += "---\n\n"
     index_content += "## 目录\n\n"
     
     for chapter in chapters:
