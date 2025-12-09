@@ -1,0 +1,14 @@
+title: OpenSource Publication
+description: A decentralized publication template.
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+exclude:
+  - manuscripts/
+  - .github/
+  - config.json
+  - README.md
+  - LICENSE
+  - CLA.md
+  - docs/

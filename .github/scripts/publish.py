@@ -4,18 +4,11 @@
 # it under the terms of the GNU Affero General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import json
 import re
+import subprocess
 from datetime import datetime, timezone
 from feedgen.feed import FeedGenerator
 
@@ -24,108 +17,188 @@ CONFIG_FILE = 'config.json'
 MANUSCRIPTS_DIR = 'manuscripts'
 CONTENT_DIR = 'content'
 FEED_FILE = 'static/feed.xml'
+INDEX_FILE = 'content/index.md'
+
+def get_git_updated_time(filepath):
+    """
+    Get the last commit timestamp for a file.
+    Falls back to filesystem modification time if git fails.
+    """
+    try:
+        # Run git log to get the unix timestamp of the last commit
+        result = subprocess.run(
+            ['git', 'log', '-1', '--format=%at', '--', filepath],
+            capture_output=True, text=True, check=False
+        )
+        timestamp = result.stdout.strip()
+        if timestamp:
+            return datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+    except Exception as e:
+        print(f"Warning: git log failed for {filepath}: {e}")
+    
+    return datetime.fromtimestamp(os.path.getmtime(filepath), tz=timezone.utc)
 
 def main():
     """
     Main function to process manuscripts and generate the feed.
     """
-    # --- Ensure content directory exists ---
     os.makedirs(CONTENT_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(FEED_FILE), exist_ok=True)
 
     # --- Load Config ---
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             config = json.load(f)
-    except FileNotFoundError:
-        print(f"Error: Configuration file '{CONFIG_FILE}' not found.")
-        exit(1)
-    except json.JSONDecodeError:
-        print(f"Error: Could not decode JSON from '{CONFIG_FILE}'.")
-        exit(1)
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {}
 
     author_name = config.get('authorName', 'Unknown Author')
     work_title = config.get('workTitle', 'Untitled Work')
+    description = config.get('description', '')
     base_site_url = config.get('baseSiteUrl', '').strip('/')
     feed_link = config.get('feedLink', '')
 
-    # --- Process all .txt files in manuscripts directory ---
-    # The workflow is triggered by changes in this dir, so we process all
-    # files to ensure consistency.
-    for filename in os.listdir(MANUSCRIPTS_DIR):
-        if not filename.endswith('.txt'):
-            continue
+    # --- Collect Chapters ---
+    chapters = []
+    
+    # Filter and sort files
+    files = sorted([f for f in os.listdir(MANUSCRIPTS_DIR) if f.endswith('.txt')])
 
+    for filename in files:
         txt_path = os.path.join(MANUSCRIPTS_DIR, filename)
         
-        match = re.match(r'^(\d{8,})\s+(.*)\.txt$', filename)
+        # Regex to extract ID and Title
+        # Supports: "001 Title.txt", "001_Title.txt", "001. Title.txt"
+        match = re.match(r'^(\d+)[_\.\s]+(.*)\.txt$', filename)
         if not match:
             print(f"Skipping invalid filename format: {filename}")
             continue
         
         chapter_id = match.group(1)
-        chapter_title = match.group(2)
+        chapter_title = match.group(2).strip()
         
-        # Create a URL-friendly slug for the filename
-        slug = re.sub(r'[^\w-]', '', chapter_title.lower().replace(' ', '-'))
+        # Create a URL-friendly slug
+        slug = re.sub(r'[^\w\u4e00-\u9fa5-]', '', chapter_title.replace(' ', '-'))
+        # Ensure distinct filename even if titles are same (using ID)
         md_filename = f"{chapter_id}-{slug}.md"
-        md_path = os.path.join(CONTENT_DIR, md_filename)
+        
+        chapters.append({
+            'id': chapter_id,
+            'title': chapter_title,
+            'txt_path': txt_path,
+            'md_filename': md_filename,
+            'updated_at': get_git_updated_time(txt_path)
+        })
 
-        with open(txt_path, 'r', encoding='utf-8') as f:
+    # --- Process Chapters & Generate Content ---
+    for i, chapter in enumerate(chapters):
+        # Determine Next/Prev
+        prev_chapter = chapters[i-1] if i > 0 else None
+        next_chapter = chapters[i+1] if i < len(chapters) - 1 else None
+
+        with open(chapter['txt_path'], 'r', encoding='utf-8') as f:
             raw_content = f.read()
 
-        # Convert to basic Markdown with <p> tags for paragraphs
-        md_content = f"# {chapter_title}\n\n"
-        paragraphs = raw_content.strip().split('\n\n')
-        md_content += "\n\n".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())
+        # Better text processing
+        # 1. Normalize line endings
+        content = raw_content.replace('\r\n', '\n')
+        # 2. Split by double newlines (paragraphs)
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        # 3. If no double newlines found, try splitting by single newlines (common in some editors)
+        if len(paragraphs) <= 1 and len(content) > 100:
+             paragraphs = [p.strip() for p in content.split('\n') if p.strip()]
 
+        # Generate Markdown with Front Matter
+        md_content = "---\
+"
+        md_content += f"layout: default\n"
+        md_content += f"title: \"{chapter['title']}\"\n"
+        md_content += f"date: {chapter['updated_at'].isoformat()}\n"
+        md_content += f"author: \"{author_name}\"\n"
+        if prev_chapter:
+            md_content += f"prev_url: ./ {prev_chapter['md_filename']}\n"
+            md_content += f"prev_title: \"{prev_chapter['title']}\"\n"
+        if next_chapter:
+            md_content += f"next_url: ./ {next_chapter['md_filename']}\n"
+            md_content += f"next_title: \"{next_chapter['title']}\"\n"
+        md_content += "---\
+\n"
+
+        md_content += f"# {chapter['title']}\n\n"
+        md_content += "\n\n".join(f"{p}" for p in paragraphs)
+        
+        # Add navigation footer
+        md_content += "\n\n---\
+\n"
+        md_content += "<div class=\"navigation\">\n"
+        if prev_chapter:
+            md_content += f"  <a href=\"./{prev_chapter['md_filename']}\">← {prev_chapter['title']}</a>\n"
+        else:
+            md_content += "  <span></span>\n"
+            
+        md_content += f"  <a href=\"./index.md\">目录</a>\n"
+        
+        if next_chapter:
+            md_content += f"  <a href=\"./{next_chapter['md_filename']}\">{next_chapter['title']} →</a>\n"
+        else:
+            md_content += "  <span></span>\n"
+        md_content += "</div>\n"
+
+        # Write MD file
+        md_path = os.path.join(CONTENT_DIR, chapter['md_filename'])
         with open(md_path, 'w', encoding='utf-8') as f:
             f.write(md_content)
         
-        print(f"Processed '{filename}' to '{md_filename}'")
+        print(f"Generated {chapter['md_filename']}")
 
-    # --- Generate Atom Feed from all Markdown files ---
+    # --- Generate Index (Table of Contents) ---
+    index_content = "---\
+"
+    index_content += "layout: default\n"
+    index_content += f"title: \"{work_title}\"\n"
+    index_content += "---\
+\n"
+    index_content += f"# {work_title}\n\n"
+    if description:
+        index_content += f"*{description}*\n\n"
+    index_content += "---\
+\n"
+    index_content += "## 目录\n\n"
+    
+    for chapter in chapters:
+        index_content += f"- [{chapter['title']}](./{chapter['md_filename']})\n"
+        
+    with open(INDEX_FILE, 'w', encoding='utf-8') as f:
+        f.write(index_content)
+    print("Generated index.md")
+
+    # --- Generate Atom Feed ---
     fg = FeedGenerator()
-    fg.id(base_site_url or work_title)
+    fg.id(base_site_url or 'urn:uuid:00000000')
     fg.title(work_title)
     fg.author({'name': author_name})
     if base_site_url:
         fg.link(href=base_site_url, rel='alternate')
     if feed_link:
         fg.link(href=feed_link, rel='self')
-    fg.subtitle(f'The latest chapters of {work_title}.')
+    fg.subtitle(f'Latest chapters of {work_title}')
     fg.language('zh-CN')
 
-    all_chapters = []
-    for md_file in sorted(os.listdir(CONTENT_DIR)):
-        if not md_file.endswith('.md'):
-            continue
-            
-        md_path = os.path.join(CONTENT_DIR, md_file)
-        with open(md_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        match = re.match(r'^(\d{8,})-(.*)\.md$', md_file)
-        if match:
-            # Reconstruct title from slug
-            title_from_slug = match.group(2).replace('-', ' ').replace('_', ' ').title()
-            all_chapters.append({
-                'id': match.group(1),
-                'title': title_from_slug,
-                'content': content,
-                'path': md_path,
-                'filename': md_file
-            })
-
-    # Add entries to the feed, sorted by chapter ID
-    for chapter in sorted(all_chapters, key=lambda x: x['id']):
+    # Add entries (reverse chronological for feed is usually better, but for books ID order is also fine. 
+    # Let's stick to ID order but maybe standard readers expect newest first? 
+    # Actually for a book, you want the "newest published chapter" at the top usually.)
+    for chapter in reversed(chapters):
         fe = fg.add_entry()
-        entry_url = f"{base_site_url}/content/{chapter['filename']}" if base_site_url else f"urn:uuid:{chapter['id']}"
+        entry_url = f"{base_site_url}/content/{chapter['md_filename']}" if base_site_url else f"urn:chapter:{chapter['id']}"
         fe.id(entry_url)
         fe.title(chapter['title'])
         fe.link(href=entry_url)
-        fe.content(chapter['content'], type='html')
-        # Use file modification time for the update timestamp
-        fe.updated(datetime.fromtimestamp(os.path.getmtime(chapter['path']), tz=timezone.utc))
+        
+        # Read back the content we just wrote to get the HTML-ish markdown
+        # Note: In a real robust setup we'd convert MD to HTML here for the feed content.
+        # For now, we will provide a summary link.
+        fe.summary(f"New chapter available: {chapter['title']}. Click to read.")
+        fe.updated(chapter['updated_at'])
 
     fg.atom_file(FEED_FILE, pretty=True)
     print(f"Generated feed at '{FEED_FILE}'")

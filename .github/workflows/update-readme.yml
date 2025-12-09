@@ -34,13 +34,20 @@ jobs:
             exit 0
           fi
           
-          # Check if the feed link already exists
-          if grep -q "\[Subscribe to our RSS Feed\]" README.md; then
-            echo "RSS feed link already exists in README.md."
+          # Check if the placeholder exists
+          if grep -q "<!-- RSS feed link will be automatically added here -->" README.md; then
+            echo "Replacing placeholder with RSS feed link."
+            # Escape special characters in URL for sed
+            ESCAPED_URL=$(echo "$FEED_URL" | sed 's/[\/&]/\\&/g')
+            sed -i "s|<!-- RSS feed link will be automatically added here -->|[Subscribe to our RSS Feed]($FEED_URL)|g" README.md
           else
-            echo "Adding RSS feed link to README.md."
-            # Add a separator and the link at the end of the file
-            echo -e "\n\n---\n\n[Subscribe to our RSS Feed]($FEED_URL)" >> README.md
+            echo "Placeholder not found. Checking if link exists..."
+            if grep -q "\[Subscribe to our RSS Feed\]" README.md; then
+               echo "RSS feed link already exists."
+            else
+               echo "Adding RSS feed link to end of file as fallback."
+               echo -e "\n\n---\n\n[Subscribe to our RSS Feed]($FEED_URL)" >> README.md
+            fi
           fi
 
       - name: Commit changes
